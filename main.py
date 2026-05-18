@@ -4,14 +4,12 @@ Main FastAPI server
 """
 
 from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from pathlib import Path
 import logging
 import os
 from dotenv import load_dotenv
-import asyncio
 
 from enrichment import enrich_company
 from pdf_generator import generate_pdf_report
@@ -39,73 +37,84 @@ class Lead(BaseModel):
     company: str
     website: str
 
+
 @app.get("/", response_class=HTMLResponse)
 async def get_form():
     """Serve the lead capture form"""
     try:
-        with open("templates/form.html", "r") as f:
+        with open("templates/form.html", "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
         return "<h1>Form file not found</h1>"
 
+
 @app.post("/submit")
 async def submit_lead(lead: Lead):
     """
-    Main workflow: receive lead → enrich → generate PDF → send email → log
+    Main workflow:
+    receive lead → enrich → generate PDF → send email → log
     """
     try:
         logger.info(f"📝 Received lead: {lead.company} ({lead.email})")
-        
+
         # Step 1: Enrich company data with AI
         logger.info("🔍 Enriching company data...")
         enriched_data = await enrich_company(lead)
-        
+
         # Step 2: Generate personalized PDF
         logger.info("📄 Generating PDF report...")
         pdf_path = generate_pdf_report(lead, enriched_data)
-        
+
         # Step 3: Send email with PDF
         logger.info("📧 Sending email...")
         email_result = send_email_with_pdf(
             to_email=lead.email,
-            pdf_path=pdf_path,
-            company_name=lead.company,
-            prospect_name=lead.name
+            company=lead.company,
+            pdf_path=pdf_path
         )
-        
+
         if not email_result:
             raise Exception("Failed to send email")
-        
-        # Step 4: Log to Google Sheets (optional)
+
+        # Step 4: Log to Google Sheets
         try:
             logger.info("📊 Logging to Google Sheets...")
             log_to_sheets(lead, "completed")
         except Exception as e:
             logger.warning(f"⚠️ Sheets logging failed: {e}")
-        
+
         logger.info(f"✅ Lead {lead.company} processed successfully!")
-        
+
         return {
             "status": "success",
             "message": f"Report sent to {lead.email}",
             "company": lead.company,
             "pdf_path": pdf_path
         }
-    
+
     except Exception as e:
         logger.error(f"❌ Error processing lead: {str(e)}")
-        # Log failed attempt to sheets
+
+        # Log failed attempt
         try:
             log_to_sheets(lead, f"failed: {str(e)}")
-        except:
+        except Exception:
             pass
+
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
 
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 8000))
+    )
