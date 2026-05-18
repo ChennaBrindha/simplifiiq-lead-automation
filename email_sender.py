@@ -6,8 +6,8 @@ import resend
 logger = logging.getLogger(__name__)
 
 def send_email_with_pdf(to_email: str, company_name: str, pdf_path: str) -> bool:
-    resend.api_key = os.getenv("RESEND_API_KEY")
-    from_email = os.getenv("FROM_EMAIL") # e.g., "onboarding@resend.dev" for testing
+    resend.api_key = os.getenv("re_VRCw2deA_4HYDmdQQZ9AKHLyEXCDnnGie")
+    from_email = os.getenv("onboarding@resend.dev") # e.g., "onboarding@resend.dev" for testing
     
     if not resend.api_key or not from_email:
         logger.error("❌ Resend environment variables missing.")
