@@ -1,6 +1,6 @@
 """
-Professional Company Enrichment Module
-Generates accurate, detailed AI insights - no generic or vague content
+Professional Company Enrichment Module (FIXED)
+No proxies parameter for OpenAI
 """
 
 import logging
@@ -8,12 +8,13 @@ import os
 from typing import Dict, Any
 import requests
 from bs4 import BeautifulSoup
-import openai
+from openai import OpenAI
 import asyncio
 
 logger = logging.getLogger(__name__)
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Initialize OpenAI WITHOUT proxies
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 async def enrich_company(lead) -> Dict[str, Any]:
     """
@@ -63,17 +64,14 @@ def extract_company_info(company_name: str, website: str) -> Dict[str, str]:
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Remove scripts and styles
         for script in soup(['script', 'style']):
             script.decompose()
         
-        # Extract text
         text = soup.get_text()
         lines = (line.strip() for line in text.splitlines())
         chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
         text = ' '.join(chunk for chunk in chunks if chunk)
         
-        # Get meta description
         meta_desc = ""
         meta = soup.find('meta', attrs={'name': 'description'})
         if meta:
@@ -115,20 +113,18 @@ Write a 3-4 paragraph professional analysis that includes:
 Be SPECIFIC to this company. Use real details from their website. No generic content.
 Write in professional business language. Be accurate and insightful."""
         
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a professional business analyst. Provide accurate, specific analysis based on actual company information."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=800,
-            temperature=0.7,
-            timeout=15
+            temperature=0.7
         )
         
         analysis = response.choices[0].message.content.strip()
         
-        # Verify it's not generic
         if len(analysis) < 200 or "unable" in analysis.lower():
             return get_generic_business_analysis(company_name)
         
@@ -162,27 +158,23 @@ Format: "Action: Specific opportunity for [Company] to [do what] by [using AI ho
 
 Do NOT be generic. Make each specific to {company_name}'s industry and business model."""
         
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=500,
-            temperature=0.8,
-            timeout=15
+            temperature=0.8
         )
         
         text = response.choices[0].message.content.strip()
         
-        # Parse opportunities
         opportunities = []
         lines = [line.strip() for line in text.split('\n') if line.strip()]
         
         for i, line in enumerate(lines[:3]):
-            # Clean numbering
             line = line.lstrip('0123456789.-) ').strip()
             if line and len(line) > 20 and not any(x in line.lower() for x in ['error', 'unable']):
                 opportunities.append(line)
         
-        # Fallback if parsing fails
         if len(opportunities) < 3:
             opportunities = [
                 f"Implement AI-powered data analytics for {company_name} to optimize business operations and decision-making",
@@ -233,12 +225,11 @@ Phase 4 - Enterprise Scale (Weeks 11+)
 
 Be specific to {company_name}'s context. No generic content."""
         
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=600,
-            temperature=0.7,
-            timeout=15
+            temperature=0.7
         )
         
         plan = response.choices[0].message.content.strip()
@@ -253,35 +244,15 @@ Be specific to {company_name}'s context. No generic content."""
         return get_generic_implementation_plan(company_name)
 
 def get_generic_business_analysis(company_name: str) -> str:
-    """
-    Professional fallback business analysis
-    """
-    return f"""{company_name} operates in a competitive market where digital transformation and AI adoption are critical for long-term success. Based on industry analysis and market positioning, {company_name} likely faces challenges common to their sector including operational efficiency, data management, customer engagement, and competitive differentiation.
-
-The organization's core business model can be significantly enhanced through strategic AI adoption. By implementing AI technologies across key business functions, {company_name} can unlock new opportunities for growth, improve decision-making capabilities, and create competitive advantages in their market.
-
-Success requires a systematic approach starting with assessment of current capabilities, identification of high-impact use cases, and phased implementation with clear metrics. The financial impact of AI adoption can be substantial, with typical ROI improvements of 20-40% in optimized processes within the first 12-18 months of implementation."""
+    return f"""{company_name} operates in a competitive market where digital transformation and AI adoption are critical for long-term success. The organization's core business model can be significantly enhanced through strategic AI adoption, unlocking new opportunities for growth and competitive differentiation."""
 
 def get_generic_implementation_plan(company_name: str) -> str:
-    """
-    Professional fallback implementation plan
-    """
-    return f"""Phase 1 - Assessment & Strategy (Weeks 1-2)
-Conduct comprehensive evaluation of {company_name}'s current technology infrastructure, data capabilities, and organizational readiness for AI adoption. Define clear objectives, success metrics, and expected business outcomes. Build executive alignment and establish governance framework.
-
-Phase 2 - Pilot Project (Weeks 3-6)
-Execute focused pilot project on highest-impact use case. Demonstrate tangible business value, build internal expertise, and validate approach. Measure results against defined KPIs and ROI projections.
-
-Phase 3 - Scale & Optimize (Weeks 7-10)
-Expand successful pilot across relevant business units. Integrate AI solutions with existing systems. Train teams and establish ongoing support structures. Refine processes based on learnings.
-
-Phase 4 - Enterprise Expansion (Weeks 11+)
-Roll out across the organization. Establish continuous improvement cycles. Plan for next-phase AI initiatives. Build sustainable competitive advantage through AI-driven operations and decision-making."""
+    return f"""Phase 1 - Assessment: Evaluate {company_name}'s current capabilities and define objectives.
+Phase 2 - Pilot: Execute proof-of-concept on highest-impact use case.
+Phase 3 - Scale: Expand across relevant business units with optimization.
+Phase 4 - Enterprise: Full organizational rollout with continuous improvement."""
 
 def get_professional_fallback(lead) -> Dict[str, Any]:
-    """
-    Professional fallback data for all fields
-    """
     return {
         "company": lead.company,
         "website": lead.website,
@@ -289,9 +260,9 @@ def get_professional_fallback(lead) -> Dict[str, Any]:
         "company_info": extract_company_info(lead.company, lead.website),
         "business_analysis": get_generic_business_analysis(lead.company),
         "ai_opportunities": [
-            f"Deploy AI-powered analytics and business intelligence for {lead.company} to enhance decision-making and operational insights",
-            f"Implement intelligent automation and process optimization across {lead.company}'s key business operations",
-            f"Build predictive models and forecasting capabilities tailored to {lead.company}'s industry dynamics"
+            f"Deploy AI-powered analytics and business intelligence for {lead.company}",
+            f"Implement intelligent automation across {lead.company}'s key business operations",
+            f"Build predictive models tailored to {lead.company}'s industry dynamics"
         ],
         "implementation_plan": get_generic_implementation_plan(lead.company)
     }
