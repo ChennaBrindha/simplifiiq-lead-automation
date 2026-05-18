@@ -1,17 +1,17 @@
 """
-UPDATED main.py
-Mandatory PDF generation + mandatory downloadable report link
-Email failure will not block report delivery
+SimplifiQ AI Lead Automation System
+Main FastAPI server
 """
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 from pathlib import Path
 import logging
 import os
 from dotenv import load_dotenv
+import asyncio
 
 from enrichment import enrich_company
 from pdf_generator import generate_pdf_report
@@ -28,104 +28,84 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI
 app = FastAPI(title="SimplifiQ Lead Automation")
 
-# Directories
+# Create necessary directories
 Path("reports").mkdir(exist_ok=True)
 Path("templates").mkdir(exist_ok=True)
 
-# Serve reports publicly
-app.mount("/reports", StaticFiles(directory="reports"), name="reports")
-
-
+# Data model for form submission
 class Lead(BaseModel):
     name: str
     email: str
     company: str
     website: str
 
-
 @app.get("/", response_class=HTMLResponse)
 async def get_form():
+    """Serve the lead capture form"""
     try:
-        with open("templates/form.html", "r", encoding="utf-8") as f:
+        with open("templates/form.html", "r") as f:
             return f.read()
     except FileNotFoundError:
         return "<h1>Form file not found</h1>"
 
-
 @app.post("/submit")
 async def submit_lead(lead: Lead):
+    """
+    Main workflow: receive lead → enrich → generate PDF → send email → log
+    """
     try:
         logger.info(f"📝 Received lead: {lead.company} ({lead.email})")
-
-        # Step 1: Enrichment
+        
+        # Step 1: Enrich company data with AI
         logger.info("🔍 Enriching company data...")
         enriched_data = await enrich_company(lead)
-
-        # Step 2: PDF generation
+        
+        # Step 2: Generate personalized PDF
         logger.info("📄 Generating PDF report...")
         pdf_path = generate_pdf_report(lead, enriched_data)
-
-        pdf_filename = os.path.basename(pdf_path)
-
-        # Public report URL
-        base_url = os.getenv(
-            "RAILWAY_PUBLIC_DOMAIN",
-            "simplifiiq-lead-automation-production.up.railway.app"
-        )
-
-        report_url = f"https://{base_url}/reports/{pdf_filename}"
-
-        # Step 3: Email attempt
+        
+        # Step 3: Send email with PDF
         logger.info("📧 Sending email...")
         email_result = send_email_with_pdf(
             to_email=lead.email,
-            company=lead.company,
-            pdf_path=pdf_path
+            pdf_path=pdf_path,
+            company_name=lead.company,
+            prospect_name=lead.name
         )
-
+        
         if not email_result:
-            logger.warning("⚠️ Email failed, but public PDF link is available.")
-
-        # Step 4: Logging
+            raise Exception("Failed to send email")
+        
+        # Step 4: Log to Google Sheets (optional)
         try:
-            status = "completed" if email_result else "pdf_generated_email_failed"
-            log_to_sheets(lead, status)
+            logger.info("📊 Logging to Google Sheets...")
+            log_to_sheets(lead, "completed")
         except Exception as e:
             logger.warning(f"⚠️ Sheets logging failed: {e}")
-
+        
+        logger.info(f"✅ Lead {lead.company} processed successfully!")
+        
         return {
             "status": "success",
+            "message": f"Report sent to {lead.email}",
             "company": lead.company,
-            "pdf_path": pdf_path,
-            "report_url": report_url,
-            "email_sent": email_result,
-            "message": (
-                f"Professional report generated successfully. "
-                f"Download here: {report_url}"
-            )
+            "pdf_path": pdf_path
         }
-
+    
     except Exception as e:
         logger.error(f"❌ Error processing lead: {str(e)}")
-
+        # Log failed attempt to sheets
         try:
             log_to_sheets(lead, f"failed: {str(e)}")
-        except Exception:
+        except:
             pass
-
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/health")
 async def health_check():
+    """Health check endpoint"""
     return {"status": "healthy"}
-
 
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 8000))
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000)
