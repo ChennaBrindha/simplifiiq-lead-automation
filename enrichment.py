@@ -8,15 +8,16 @@ import os
 from typing import Dict, Any
 import requests
 from bs4 import BeautifulSoup
-import openai
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-# Setup OpenAI
+# Setup OpenAI Client
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if OPENAI_API_KEY:
-    openai.api_key = OPENAI_API_KEY
+    # Properly instantiate the client for modern OpenAI versions
+    client = OpenAI(api_key=OPENAI_API_KEY)
     OPENAI_AVAILABLE = True
 else:
     logger.warning("OpenAI API key not found.")
@@ -101,7 +102,7 @@ def generate_business_analysis(company_name: str, company_info: Dict) -> str:
             f"Write 3 professional paragraphs about their business, industry, and challenges."
         )
 
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "user", "content": prompt}
@@ -127,7 +128,7 @@ def generate_ai_opportunities(company_name: str, analysis: str) -> list:
             f"Business analysis: {analysis[:400]}"
         )
 
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "user", "content": prompt}
@@ -163,7 +164,7 @@ def generate_implementation_plan(company_name: str, opportunities: list) -> str:
             f"focused on: {primary_opportunity}"
         )
 
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "user", "content": prompt}

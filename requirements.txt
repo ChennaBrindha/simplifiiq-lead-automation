@@ -3,11 +3,10 @@ uvicorn==0.24.0
 python-dotenv==1.0.0
 requests==2.31.0
 beautifulsoup4==4.12.2
-openai==0.27.8
+openai>=1.0.0
 reportlab==4.0.7
 gspread==5.11.3
 google-auth-oauthlib==1.1.0
 google-auth-httplib2==0.2.0
 google-auth==2.25.2
 aiofiles==23.2.1
-sendgrid==6.9.1

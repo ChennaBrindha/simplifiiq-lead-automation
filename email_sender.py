@@ -1,47 +1,48 @@
 """
 UPDATED email_sender.py
-Uses SendGrid API for guaranteed Railway-compatible email delivery
+Uses standard SMTP delivery using SENDER_EMAIL and SENDER_PASSWORD from Railway
 """
 
 import os
-import base64
 import logging
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import (
-    Mail,
-    Attachment,
-    FileContent,
-    FileName,
-    FileType,
-    Disposition
-)
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 
 logger = logging.getLogger(__name__)
 
 
 def send_email_with_pdf(to_email: str, company: str, pdf_path: str) -> bool:
     """
-    Send professional PDF report using SendGrid API
+    Send professional PDF report using standard SMTP
     Railway-compatible
     """
+    SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+    SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
 
-    SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-    FROM_EMAIL = os.getenv("FROM_EMAIL")
-
-    if not SENDGRID_API_KEY or not FROM_EMAIL:
-        logger.error("❌ Missing SendGrid credentials")
+    if not SENDER_EMAIL or not SENDER_PASSWORD:
+        logger.error("❌ Missing email credentials (SENDER_EMAIL or SENDER_PASSWORD)")
         return False
 
+    # Automatically detect SMTP settings based on your email provider
+    smtp_server = "smtp.gmail.com"  # Default to Gmail
+    smtp_port = 587  # Standard TLS Port
+
+    if "@outlook.com" in SENDER_EMAIL.lower() or "@hotmail.com" in SENDER_EMAIL.lower():
+        smtp_server = "smtp-mail.outlook.com"
+    elif "@yahoo.com" in SENDER_EMAIL.lower():
+        smtp_server = "smtp.mail.yahoo.com"
+
     try:
-        # Read PDF file
-        with open(pdf_path, "rb") as f:
-            pdf_data = f.read()
+        # Create message container
+        msg = MIMEMultipart()
+        msg["From"] = SENDER_EMAIL
+        msg["To"] = to_email
+        msg["Subject"] = f"Your AI Transformation Report for {company}"
 
-        encoded_pdf = base64.b64encode(pdf_data).decode()
-
-        # Email body
-        subject = f"Your AI Transformation Report for {company}"
-
+        # Email HTML body
         html_content = f"""
         <html>
             <body>
@@ -66,36 +67,30 @@ def send_email_with_pdf(to_email: str, company: str, pdf_path: str) -> bool:
             </body>
         </html>
         """
+        msg.attach(MIMEText(html_content, "html"))
 
-        # Create mail object
-        message = Mail(
-            from_email=FROM_EMAIL,
-            to_emails=to_email,
-            subject=subject,
-            html_content=html_content
+        # Read and attach the PDF file
+        with open(pdf_path, "rb") as f:
+            attachment = MIMEBase("application", "octet-stream")
+            attachment.set_payload(f.read())
+
+        encoders.encode_base64(attachment)
+        attachment.add_header(
+            "Content-Disposition",
+            f"attachment; filename={os.path.basename(pdf_path)}",
         )
+        msg.attach(attachment)
 
-        # Attach PDF
-        attached_file = Attachment(
-            FileContent(encoded_pdf),
-            FileName(os.path.basename(pdf_path)),
-            FileType("application/pdf"),
-            Disposition("attachment")
-        )
+        # Connect to server and send email
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()  # Upgrade connection to secure TLS
+        server.login(SENDER_EMAIL, SENDER_PASSWORD)
+        server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
+        server.quit()
 
-        message.attachment = attached_file
-
-        # Send email
-        sg = SendGridAPIClient(SENDGRID_API_KEY)
-        response = sg.send(message)
-
-        if response.status_code in [200, 201, 202]:
-            logger.info(f"✅ Email sent successfully to {to_email}")
-            return True
-        else:
-            logger.error(f"❌ SendGrid failed with status: {response.status_code}")
-            return False
+        logger.info(f"✅ Email sent successfully via SMTP to {to_email}")
+        return True
 
     except Exception as e:
-        logger.error(f"❌ Email sending failed: {str(e)}")
+        logger.error(f"❌ SMTP Email sending failed: {str(e)}")
         return False
