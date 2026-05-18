@@ -10,3 +10,4 @@ google-auth-oauthlib==1.1.0
 google-auth-httplib2==0.2.0
 google-auth==2.25.2
 aiofiles==23.2.1
+sendgrid==6.9.1
