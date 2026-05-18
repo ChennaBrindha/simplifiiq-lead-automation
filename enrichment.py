@@ -9,27 +9,23 @@ from typing import Dict, Any
 import requests
 from bs4 import BeautifulSoup
 from openai import OpenAI
+import httpx
 import asyncio
 
 logger = logging.getLogger(__name__)
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Create OpenAI client with explicit httpx client (no proxies)
+http_client = httpx.Client(proxies=None)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=http_client)
 
 async def enrich_company(lead) -> Dict[str, Any]:
     """
     Comprehensive company analysis with accurate insights
     """
     try:
-        # Step 1: Extract company information from website
         company_info = extract_company_info(lead.company, lead.website)
-        
-        # Step 2: Generate detailed business analysis
         business_analysis = generate_business_analysis(lead.company, company_info)
-        
-        # Step 3: Identify specific AI opportunities for this company
         ai_opportunities = generate_ai_opportunities(lead.company, business_analysis, company_info)
-        
-        # Step 4: Create actionable implementation roadmap
         implementation_plan = generate_implementation_plan(lead.company, ai_opportunities)
         
         return {
