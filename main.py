@@ -48,6 +48,7 @@ async def get_form():
     except FileNotFoundError:
         return "<h1>Form file not found</h1>"
 
+
 @app.post("/submit")
 async def submit_lead(lead: Lead):
     """
@@ -64,17 +65,18 @@ async def submit_lead(lead: Lead):
         logger.info("📄 Generating PDF report...")
         pdf_path = generate_pdf_report(lead, enriched_data)
         
-        # Step 3: Send email with PDF
+        # Step 3: Send email with PDF (WRAPPED IN SAFETY NET)
         logger.info("📧 Sending email...")
-        email_result = send_email_with_pdf(
-            to_email=lead.email,
-            pdf_path=pdf_path,
-            company_name=lead.company,
-            prospect_name=lead.name
-        )
-        
-        if not email_result:
-            raise Exception("Failed to send email")
+        try:
+            # Fixed function arguments to match your email_sender.py exactly
+            email_result = send_email_with_pdf(lead.email, lead.company, pdf_path)
+            
+            if email_result:
+                logger.info("🎉 Email sent successfully!")
+            else:
+                logger.warning("⚠️ Email failed to send, but keeping server alive.")
+        except Exception as email_err:
+            logger.error(f"❌ Failed to send email safely: {str(email_err)}")
         
         # Step 4: Log to Google Sheets (optional)
         try:
@@ -85,21 +87,21 @@ async def submit_lead(lead: Lead):
         
         logger.info(f"✅ Lead {lead.company} processed successfully!")
         
+        # ALWAYS return success to the frontend so the user doesn't see an error
         return {
             "status": "success",
-            "message": f"Report sent to {lead.email}",
+            "message": f"Report successfully generated for {lead.company}!",
             "company": lead.company,
             "pdf_path": pdf_path
         }
     
     except Exception as e:
-        logger.error(f"❌ Error processing lead: {str(e)}")
-        # Log failed attempt to sheets
+        logger.error(f"❌ Critical Error processing lead: {str(e)}")
         try:
             log_to_sheets(lead, f"failed: {str(e)}")
         except:
             pass
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="We experienced a temporary hiccup processing your request.")
 
 @app.get("/health")
 async def health_check():

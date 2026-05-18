@@ -5,6 +5,7 @@ Powered by 100% Free Google Gemini API
 
 import logging
 import os
+import time
 from typing import Dict, Any
 import requests
 from bs4 import BeautifulSoup
@@ -93,72 +94,84 @@ def generate_business_analysis(company_name: str, company_info: Dict) -> str:
     if not AI_AVAILABLE:
         return get_generic_business_analysis(company_name)
 
-    try:
-        prompt = (
-            f"Analyze {company_name}. "
-            f"Website content: {company_info.get('website_content', '')[:500]}. "
-            f"Write 3 professional paragraphs about their business, industry, and challenges."
-        )
+    prompt = (
+        f"Analyze {company_name}. "
+        f"Website content: {company_info.get('website_content', '')[:500]}. "
+        f"Write 3 professional paragraphs about their business, industry, and challenges."
+    )
 
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt
-        )
-        return response.text.strip()
-
-    except Exception as e:
-        logger.error(f"Business analysis error: {e}")
-        return get_generic_business_analysis(company_name)
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt
+            )
+            return response.text.strip()
+        except Exception as e:
+            if "503" in str(e) and attempt < 2:
+                logger.warning(f"⏳ Gemini busy (503). Retrying business analysis in 2s (Attempt {attempt+1}/3)")
+                time.sleep(2)
+                continue
+            logger.error(f"Business analysis error: {e}")
+            return get_generic_business_analysis(company_name)
 
 
 def generate_ai_opportunities(company_name: str, analysis: str) -> list:
     if not AI_AVAILABLE:
         return get_default_ai_opportunities(company_name)
 
-    try:
-        prompt = (
-            f"List 3 specific AI business opportunities for {company_name} based on this "
-            f"analysis: {analysis[:400]}. Format them clearly as bullet points or lines."
-        )
+    prompt = (
+        f"List 3 specific AI business opportunities for {company_name} based on this "
+        f"analysis: {analysis[:400]}. Format them clearly as bullet points or lines."
+    )
 
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt
-        )
-        text = response.text.strip()
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt
+            )
+            text = response.text.strip()
 
-        opportunities = [
-            line.strip("-•1234567890. ")
-            for line in text.split("\n")
-            if line.strip()
-        ]
-        return opportunities[:3] if len(opportunities) >= 3 else get_default_ai_opportunities(company_name)
-
-    except Exception as e:
-        logger.error(f"AI opportunities error: {e}")
-        return get_default_ai_opportunities(company_name)
+            opportunities = [
+                line.strip("-•1234567890. ")
+                for line in text.split("\n")
+                if line.strip()
+            ]
+            return opportunities[:3] if len(opportunities) >= 3 else get_default_ai_opportunities(company_name)
+        except Exception as e:
+            if "503" in str(e) and attempt < 2:
+                logger.warning(f"⏳ Gemini busy (503). Retrying AI opportunities in 2s (Attempt {attempt+1}/3)")
+                time.sleep(2)
+                continue
+            logger.error(f"AI opportunities error: {e}")
+            return get_default_ai_opportunities(company_name)
 
 
 def generate_implementation_plan(company_name: str, opportunities: list) -> str:
     if not AI_AVAILABLE:
         return get_generic_implementation_plan(company_name)
 
-    try:
-        primary_opportunity = opportunities[0] if opportunities else "AI transformation"
-        prompt = (
-            f"Create a detailed 4-phase AI implementation roadmap for {company_name} "
-            f"focused on: {primary_opportunity}"
-        )
+    primary_opportunity = opportunities[0] if opportunities else "AI transformation"
+    prompt = (
+        f"Create a detailed 4-phase AI implementation roadmap for {company_name} "
+        f"focused on: {primary_opportunity}"
+    )
 
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt
-        )
-        return response.text.strip()
-
-    except Exception as e:
-        logger.error(f"Implementation plan error: {e}")
-        return get_generic_implementation_plan(company_name)
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt
+            )
+            return response.text.strip()
+        except Exception as e:
+            if "503" in str(e) and attempt < 2:
+                logger.warning(f"⏳ Gemini busy (503). Retrying implementation plan in 2s (Attempt {attempt+1}/3)")
+                time.sleep(2)
+                continue
+            logger.error(f"Implementation plan error: {e}")
+            return get_generic_implementation_plan(company_name)
 
 
 def get_default_ai_opportunities(company_name: str) -> list:
