@@ -30,6 +30,7 @@ app = FastAPI(title="SimplifiQ Lead Automation")
 Path("reports").mkdir(exist_ok=True)
 Path("templates").mkdir(exist_ok=True)
 
+
 # Data model for form submission
 class Lead(BaseModel):
     name: str
@@ -73,13 +74,15 @@ async def submit_lead(lead: Lead):
             pdf_path=pdf_path
         )
 
+        # Email failure should NOT break report generation
         if not email_result:
-            raise Exception("Failed to send email")
+            logger.warning("⚠️ Email failed, but PDF was generated successfully.")
 
         # Step 4: Log to Google Sheets
         try:
             logger.info("📊 Logging to Google Sheets...")
-            log_to_sheets(lead, "completed")
+            status = "completed" if email_result else "pdf_generated_email_failed"
+            log_to_sheets(lead, status)
         except Exception as e:
             logger.warning(f"⚠️ Sheets logging failed: {e}")
 
@@ -87,9 +90,13 @@ async def submit_lead(lead: Lead):
 
         return {
             "status": "success",
-            "message": f"Report sent to {lead.email}",
+            "message": (
+                f"Report generated successfully for {lead.company}. "
+                f"{'Email sent successfully.' if email_result else 'Email failed, but PDF report was created successfully.'}"
+            ),
             "company": lead.company,
-            "pdf_path": pdf_path
+            "pdf_path": pdf_path,
+            "email_sent": email_result
         }
 
     except Exception as e:
