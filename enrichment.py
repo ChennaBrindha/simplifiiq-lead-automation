@@ -1,6 +1,6 @@
 """
 Professional Company Enrichment Module
-Updated for OpenAI v1+ compatibility
+Powered by 100% Free Google Gemini API
 """
 
 import logging
@@ -8,20 +8,19 @@ import os
 from typing import Dict, Any
 import requests
 from bs4 import BeautifulSoup
-from openai import OpenAI
+from google import genai
 
 logger = logging.getLogger(__name__)
 
-# Setup OpenAI Client
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# Setup Gemini Client
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-if OPENAI_API_KEY:
-    # Properly instantiate the client for modern OpenAI versions
-    client = OpenAI(api_key=OPENAI_API_KEY)
-    OPENAI_AVAILABLE = True
+if GEMINI_API_KEY:
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    AI_AVAILABLE = True
 else:
-    logger.warning("OpenAI API key not found.")
-    OPENAI_AVAILABLE = False
+    logger.warning("GEMINI_API_KEY not found.")
+    AI_AVAILABLE = False
 
 
 async def enrich_company(lead) -> Dict[str, Any]:
@@ -52,7 +51,7 @@ def extract_company_info(company_name: str, website: str) -> Dict[str, str]:
             website = "https://" + website
 
         headers = {
-            "User-Agent": "Mozilla/5.0"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
 
         response = requests.get(website, headers=headers, timeout=10)
@@ -82,7 +81,6 @@ def extract_company_info(company_name: str, website: str) -> Dict[str, str]:
 
     except Exception as e:
         logger.warning(f"Website extraction error: {e}")
-
         return {
             "website_content": "",
             "meta_description": "",
@@ -92,7 +90,7 @@ def extract_company_info(company_name: str, website: str) -> Dict[str, str]:
 
 
 def generate_business_analysis(company_name: str, company_info: Dict) -> str:
-    if not OPENAI_AVAILABLE:
+    if not AI_AVAILABLE:
         return get_generic_business_analysis(company_name)
 
     try:
@@ -102,16 +100,11 @@ def generate_business_analysis(company_name: str, company_info: Dict) -> str:
             f"Write 3 professional paragraphs about their business, industry, and challenges."
         )
 
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=500,
-            temperature=0.7
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt
         )
-
-        return response.choices[0].message.content.strip()
+        return response.text.strip()
 
     except Exception as e:
         logger.error(f"Business analysis error: {e}")
@@ -119,32 +112,26 @@ def generate_business_analysis(company_name: str, company_info: Dict) -> str:
 
 
 def generate_ai_opportunities(company_name: str, analysis: str) -> list:
-    if not OPENAI_AVAILABLE:
+    if not AI_AVAILABLE:
         return get_default_ai_opportunities(company_name)
 
     try:
         prompt = (
-            f"List 3 specific AI business opportunities for {company_name}. "
-            f"Business analysis: {analysis[:400]}"
+            f"List 3 specific AI business opportunities for {company_name} based on this "
+            f"analysis: {analysis[:400]}. Format them clearly as bullet points or lines."
         )
 
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=300,
-            temperature=0.8
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt
         )
-
-        text = response.choices[0].message.content.strip()
+        text = response.text.strip()
 
         opportunities = [
             line.strip("-•1234567890. ")
             for line in text.split("\n")
             if line.strip()
         ]
-
         return opportunities[:3] if len(opportunities) >= 3 else get_default_ai_opportunities(company_name)
 
     except Exception as e:
@@ -153,27 +140,21 @@ def generate_ai_opportunities(company_name: str, analysis: str) -> list:
 
 
 def generate_implementation_plan(company_name: str, opportunities: list) -> str:
-    if not OPENAI_AVAILABLE:
+    if not AI_AVAILABLE:
         return get_generic_implementation_plan(company_name)
 
     try:
         primary_opportunity = opportunities[0] if opportunities else "AI transformation"
-
         prompt = (
             f"Create a detailed 4-phase AI implementation roadmap for {company_name} "
             f"focused on: {primary_opportunity}"
         )
 
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=400,
-            temperature=0.7
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt
         )
-
-        return response.choices[0].message.content.strip()
+        return response.text.strip()
 
     except Exception as e:
         logger.error(f"Implementation plan error: {e}")
