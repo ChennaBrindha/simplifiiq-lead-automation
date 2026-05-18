@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SENDER_EMAIL=${SENDER_EMAIL}
+      - SENDER_PASSWORD=${SENDER_PASSWORD}
+      - GOOGLE_CREDENTIALS_PATH=${GOOGLE_CREDENTIALS_PATH}
+      - GOOGLE_SHEET_NAME=${GOOGLE_SHEET_NAME}
+    volumes:
+      - ./reports:/app/reports
+      - ./credentials.json:/app/credentials.json:ro
+    restart: unless-stopped
+
+# Usage:
+# 1. Make sure .env file exists with all credentials
+# 2. Run: docker-compose up
+# 3. Visit http://localhost:8000
