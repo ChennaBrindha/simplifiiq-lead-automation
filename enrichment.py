@@ -1,6 +1,6 @@
 """
-Professional Company Enrichment Module (FIXED)
-No proxies parameter for OpenAI
+Professional Company Enrichment Module
+Generates accurate, detailed AI insights - no generic or vague content
 """
 
 import logging
@@ -13,7 +13,6 @@ import asyncio
 
 logger = logging.getLogger(__name__)
 
-# Initialize OpenAI WITHOUT proxies
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 async def enrich_company(lead) -> Dict[str, Any]:
